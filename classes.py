@@ -1,3 +1,8 @@
+import socket
+from exceptions import GameOver
+import time
+import pygame
+
 class Ball:
     def __init__(self, position, vector):
         self.position = position
@@ -44,6 +49,9 @@ class Table:
             self.row("_")
         ]
 
+    def move_ball(self):
+        pass
+
     def draw_ball(self, matrix):
         if self.ball:
             matrix[self.ball.position[0]][self.ball.position[1]]="@"
@@ -65,11 +73,33 @@ class Table:
 class Game:
     tablesize = 40
     
+    def send_ball():
+        pass
+
     def __init__(self, opponent, issue_challenge=False):
+        self.challender = issue_challenge
         self.table = Table(self.tablesize)
-        if self.issue_challenge:
+        if issue_challenge:
             self.table.ball = Ball((-2, self.tablesize//2), (-1, 0))
         self.opponent = opponent
 
-    def challenge(self):
-        pass
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.bind((opponent, 65432))
+
+        pygame.init()
+
+        try:
+            while True:
+                if self.table.ball:
+                    self.table.move_ball()
+                    for x in range(5):
+                        time.sleep(0.04)
+                        for event in pygame.event.get():
+                            if event.type == pygame.KEYDOWN:
+                                if event.key == pygame.K_LEFT:
+                                    print("Hey, you pressed the key, '0'!")
+                                if event.key == pygame.K_RIGHT:
+                                    print("Doing whatever")
+
+        except GameOver:
+            pass
