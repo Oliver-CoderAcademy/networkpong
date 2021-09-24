@@ -1,5 +1,5 @@
 import socket
-from exceptions import GameOver
+from exceptions import GameOver, SendBall
 import time
 import pygame
 import os
@@ -50,8 +50,9 @@ class Table:
     @property
     def table_matrix(self):
         return [
-            self.row("~"), 
-            *[self.row(" ") for x in range(self.size//2-2)], 
+            self.row("~"),
+            ["|", "|"]+[" " for x in range(self.size-4)]+["|", "|"], 
+            *[self.row(" ") for x in range(self.size//2-3)], 
             self.row("_")
         ]
 
@@ -67,9 +68,13 @@ class Table:
         if next_char == "|":
             self.ball.bounce_h()
         if next_char == "~":
+            print("sending")
+            ballpos=self.ball.position
+            ballvec=self.ball.vector
             self.ball=None
+            raise SendBall(ballpos, ballvec)
+            
         
-
     def draw_ball(self, matrix):
         if self.ball:
             matrix[self.ball.position[0]][self.ball.position[1]]="@"
@@ -93,38 +98,60 @@ class Table:
 class Game:
     tablesize = 40
     
-    def send_ball():
-        pass
+    def send_ball(self, position, vector):
+        self.conn.sendall(bytes(f"{position[0]}, {position[1]}||{vector[0]}, {vector[1]}", "utf-8"))
 
-    def __init__(self, opponent, issue_challenge=False):
-        self.challender = issue_challenge
+    def __init__(self, issue_challenge=False):
+        self.challenger = issue_challenge
         self.table = Table(self.tablesize)
-        if issue_challenge:
+        
+        if not issue_challenge:
             self.table.ball = Ball((-2, self.tablesize//2), (-1, 0))
-        self.opponent = opponent
-
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind((opponent, 65432))
+        
+        if self.challenger:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.bind(("127.0.0.1", 65432))
+            self.socket.listen()
+            self.conn, self.addr = self.socket.accept()
+            print("CONNECTED")
+        else:
+            self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.conn.connect(("127.0.0.1", 65432))
+            print("CONNECTED")
 
         pygame.init()
 
         try:
             while True:
                 if self.table.ball:
-                    self.table.move_ball() 
-                    for x in range(5):
-                        time.sleep(0.5)
-                        os.system('cls' if os.name == 'nt' else 'clear')
-                        for event in pygame.event.get():
-                            if event.type == pygame.KEYDOWN:
-                                if event.key == pygame.K_LEFT:
-                                    self.table.paddle.move(left=True)
-                                if event.key == pygame.K_RIGHT:
-                                    self.table.paddle.move(left=False)
-                        self.table.move_ball()
-                        print(self.table)
-                                
-                                
-
+                    try:
+                        self.table.move_ball() 
+                        for x in range(5):
+                            time.sleep(0.5)
+                            os.system('cls' if os.name == 'nt' else 'clear')
+                            for event in pygame.event.get():
+                                if event.type == pygame.KEYDOWN:
+                                    if event.key == pygame.K_LEFT:
+                                        self.table.paddle.move(left=True)
+                                    if event.key == pygame.K_RIGHT:
+                                        self.table.paddle.move(left=False)
+                            self.table.move_ball()
+                            print(self.table)
+                    except SendBall as s:
+                        self.send_ball(s.position, s.vector)
+                else:
+                    position, vector = repr(self.conn.recv(1024)).strip("b'").split("||")
+                    position = [int(position.split(", ")[0]), int(position.split(", ")[1])]
+                    vector = [int(vector.split(", ")[0])*-1, int(vector.split(", ")[1])]
+                    self.table.ball = Ball(position, vector)
+                                    
         except GameOver as e:
             print(e.message)
+
+        
+
+       
+
+        
+
+
